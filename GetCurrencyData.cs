@@ -2,6 +2,12 @@ using System.Text.Json;
 
 namespace CurrencyApp;
 
+public enum ConversionType
+{
+    EURtoHUF = 1,
+    HUFtoEUR = 2
+}
+
 public class GetCurrencyData
 {
     const string cacheFile = "currencyCache.json";
@@ -11,9 +17,12 @@ public class GetCurrencyData
     const string apiUrl = $"https://currencyapi.net/api/v1/rates?key={key}&base={baseForCurrency}&output={outputType}";
     const int cacheDurationMinutes = 60;
     
-    public static async Task GetData()
+    public static async Task GetData(ConversionType conversionType)
     {
         CurrencyApiResponse? data = null;
+
+        Console.WriteLine("Amount: ");
+        int szam = int.Parse(Console.ReadLine() ?? string.Empty);
         
         if (File.Exists(cacheFile))
         {
@@ -54,9 +63,22 @@ public class GetCurrencyData
             decimal usdToEur = data.Rates["EUR"];
             decimal usdToHuf = data.Rates["HUF"];
 
-            decimal eurToHuf = usdToHuf / usdToEur;
-            Console.WriteLine($"1 EUR = {eurToHuf} HUF");
-            Console.WriteLine($"1 USD = {usdToHuf} USD");   
+            decimal eurToHufRate = usdToHuf / usdToEur;
+            decimal hufToEurRate = 1 / eurToHufRate;
+            
+            switch (conversionType)
+            {
+                case ConversionType.EURtoHUF:
+                    decimal eurToHuf = szam * eurToHufRate;
+                    Console.WriteLine($"In HUF: {eurToHuf:F2} Ft");
+                    break;
+                case ConversionType.HUFtoEUR:
+                    decimal hufToEur = szam * hufToEurRate;
+                    Console.WriteLine($"In EUR: €{hufToEur:F2}");
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(conversionType), conversionType, null);
+            }
         }
     }
 }

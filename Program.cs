@@ -9,7 +9,7 @@ class Program
     static void Main()
     {
         var menu = Launcher.Menu
-            .AddItem(new MenuItem("Lekérdezés", () => _ = GetCurrencyData.GetData()))
+            .AddItem(new MenuItem("Convert", ShowConversionMenu))
             .AddExitItem()
             .SetPointerCharacter('^')
             .Build();
@@ -19,5 +19,16 @@ class Program
         Launcher.Layout.Footer.RightItem = new ComponentItem("CurrencyApp", true, (ConsoleColor.Black, ConsoleColor.Green));
 
         menu.Print();
+    }
+    
+    private static void ShowConversionMenu()
+    {
+        Launcher.Menu
+            .AddItem(new MenuItem("EUR → HUF", () => _ = GetCurrencyData.GetData(ConversionType.EURtoHUF)))
+            .AddItem(new MenuItem("HUF → EUR", () => _ = GetCurrencyData.GetData(ConversionType.HUFtoEUR)))
+            .AddReturnItem()
+            .AddExitItem()
+            .SetPointerCharacter('>')
+            .Print();
     }
 }
