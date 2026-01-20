@@ -10,36 +10,62 @@ public enum ConversionType
     HUFtoEUR = 2
 }
 
-public class GetCurrencyData
+public static class GetCurrencyData
 {
     /// <summary>
     /// Retrieves the current EUR↔HUF exchange rates from the currencyapi.net API (or from the cache if valid),
     /// then converts a user-specified amount between EUR and HUF.
     /// </summary>
-    /// <param name="conversionType">
-    /// Specifies the conversion direction:
+    /// <remarks>
+    /// The method performs the following steps:
+    /// <list type="number">
+    /// <item>
+    /// <description>
+    /// Prompts the user to enter a positive numeric amount via the console.
+    /// </description>
+    /// </item>
+    /// <item>
+    /// <description>
+    /// Retrieves exchange rate data either from a valid local cache file
+    /// (<c>Config.cacheFile</c>) or, if the cache is missing or expired,
+    /// fetches fresh data from the currencyapi.net API and stores it locally.
+    /// </description>
+    /// </item>
+    /// <item>
+    /// <description>
+    /// Converts the specified amount between EUR and HUF based on the selected
+    /// <see cref="ConversionType"/> and prints the result to the console.
+    /// </description>
+    /// </item>
+    /// </list>
+    /// </remarks>
+    /// <param name="type">
+    /// Defines the conversion direction:
     /// <list type="bullet">
-    /// <item><description>ConversionType.EURtoHUF - Convert from Euro to Hungarian Forint</description></item>
-    /// <item><description>ConversionType.HUFtoEUR - Convert from Hungarian Forint to Euro</description></item>
+    /// <item>
+    /// <description>
+    /// <see cref="ConversionType.EURtoHUF"/> – Convert from Euro (EUR) to Hungarian Forint (HUF).
+    /// </description>
+    /// </item>
+    /// <item>
+    /// <description>
+    /// <see cref="ConversionType.HUFtoEUR"/> – Convert from Hungarian Forint (HUF) to Euro (EUR).
+    /// </description>
+    /// </item>
     /// </list>
     /// </param>
-    /// <remarks>
-    /// The method first checks if a valid cache exists in the local file (<c>Config.cacheFile</c>), 
-    /// which is valid for 60 minutes (<c>Config.cacheDurationMinutes</c>). 
-    /// If no valid cache is found, it sends an HTTP GET request to the API to fetch the latest rates.
-    /// The user is prompted in the console to enter the amount to convert, and the method calculates 
-    /// and prints the converted value rounded to two decimal places.
-    /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// Thrown if <paramref name="conversionType"/> is not one of the defined enum values.
+    /// Thrown when an unsupported <see cref="ConversionType"/> value is provided.
     /// </exception>
-    public static async Task CurrencyCalculator(ConversionType conversionType)
+    public static async Task CurrencyCalculator(ConversionType type)
     {
-        CurrencyApiResponse? data = null;
+        decimal amount = CheckAndGetUserInput(type);
+        var data = await CheckIfCachedFileExistAndTimestampNotExpired() ?? await FetchDataAndCache();
+        CurrencyConversion(data, type, amount);
+    }
 
-        Console.WriteLine("Amount: ");
-        int szam = int.Parse(Console.ReadLine() ?? string.Empty);
-        
+    private static async Task<CurrencyApiResponse?> CheckIfCachedFileExistAndTimestampNotExpired()
+    {
         if (File.Exists(Config.cacheFile))
         {
             string cachedText = await File.ReadAllTextAsync(Config.cacheFile);
@@ -48,7 +74,7 @@ public class GetCurrencyData
                 var cachedObject = JsonSerializer.Deserialize<CachedCurrency>(cachedText);
                 if (cachedObject != null && (DateTime.Now - cachedObject.Timestamp).TotalMinutes < Config.cacheDurationMinutes)
                 {
-                    data = cachedObject.Data;
+                    return cachedObject.Data;
                 }
             }
             catch
@@ -56,45 +82,73 @@ public class GetCurrencyData
                 File.Delete(Config.cacheFile);
             }
         }
-        
-        if (data is null)
-        {
-            using var httpClient = new HttpClient();
-            var response = await httpClient.GetAsync(Config.GetApiUrl());
-            response.EnsureSuccessStatusCode();
+        return null;
+    }
+    
+    private static async Task<CurrencyApiResponse> FetchDataAndCache()
+    {
+        using var httpClient = new HttpClient();
+        var response = await httpClient.GetAsync(Config.GetApiUrl());
+        response.EnsureSuccessStatusCode();
 
-            string json = await response.Content.ReadAsStringAsync();
-            data = JsonSerializer.Deserialize<CurrencyApiResponse>(json);
-
-            if (data is not null)
-            {
-                var cached = new CachedCurrency(DateTime.Now, data);
-                var cacheJson = JsonSerializer.Serialize(cached, new JsonSerializerOptions { WriteIndented = true });
-                await File.WriteAllTextAsync(Config.cacheFile, cacheJson);
-            }
-        }
+        string json = await response.Content.ReadAsStringAsync();
+        var data = JsonSerializer.Deserialize<CurrencyApiResponse>(json);
 
         if (data is not null)
         {
-            decimal usdToEur = data.Rates["EUR"];
-            decimal usdToHuf = data.Rates["HUF"];
+            var cached = new CachedCurrency(DateTime.Now, data);
+            var cacheJson = JsonSerializer.Serialize(cached, new JsonSerializerOptions { WriteIndented = true });
+            await File.WriteAllTextAsync(Config.cacheFile, cacheJson);
+        }
+        else
+            throw new Exception("Something went wrong while serializing the JSON.");
 
-            decimal eurToHufRate = usdToHuf / usdToEur;
-            decimal hufToEurRate = 1 / eurToHufRate;
+        return data;
+    }
+    
+    private static void CurrencyConversion(CurrencyApiResponse data, ConversionType type, decimal amount)
+    {
+        decimal usdToEur = data.Rates["EUR"];
+        decimal usdToHuf = data.Rates["HUF"];
+
+        decimal eurToHufRate = usdToHuf / usdToEur;
+        decimal hufToEurRate = 1 / eurToHufRate;
             
-            switch (conversionType)
+        switch (type)
+        {
+            case ConversionType.EURtoHUF:
+                decimal eurToHuf = amount * eurToHufRate;
+                Console.WriteLine($"In HUF: {eurToHuf:F2} Ft");
+                break;
+            case ConversionType.HUFtoEUR:
+                decimal hufToEur = amount * hufToEurRate;
+                Console.WriteLine($"In EUR: €{hufToEur:F2}");
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(type), type, null);
+        }
+    }
+    
+    private static decimal CheckAndGetUserInput(ConversionType type)
+    {
+        string label = type == ConversionType.EURtoHUF
+            ? "Amount (EUR): €"
+            : "Amount (HUF): Ft ";
+        
+        while (true)
+        {
+            Console.Write(label);
+            string? input = Console.ReadLine();
+
+            if (decimal.TryParse(input, out decimal amount) && amount > 0)
             {
-                case ConversionType.EURtoHUF:
-                    decimal eurToHuf = szam * eurToHufRate;
-                    Console.WriteLine($"In HUF: {eurToHuf:F2} Ft");
-                    break;
-                case ConversionType.HUFtoEUR:
-                    decimal hufToEur = szam * hufToEurRate;
-                    Console.WriteLine($"In EUR: €{hufToEur:F2}");
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(conversionType), conversionType, null);
+                return amount;
             }
+            
+            Console.Clear();
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine("Invalid input. Please enter a valid number (e.g. 1, 4, 2,55, 1,7976931348623157E+308).\n");
+            Console.ResetColor();
         }
     }
 }
