@@ -1,6 +1,7 @@
 ﻿using ConsoleLauncher;
 using ConsoleLauncher.GUI.Interfaces;
 using ConsoleLauncher.GUI.MenuItems;
+using CurrencyApp.Services;
 
 namespace CurrencyApp;
 
@@ -24,8 +25,8 @@ class Program
     private static void ShowConversionMenu()
     {
         Launcher.Menu
-            .AddItem(new MenuItem("EUR → HUF", () => _ = GetCurrencyData.GetData(ConversionType.EURtoHUF)))
-            .AddItem(new MenuItem("HUF → EUR", () => _ = GetCurrencyData.GetData(ConversionType.HUFtoEUR)))
+            .AddItem(new MenuItem("EUR → HUF", () => _ = GetCurrencyData.CurrencyCalculator(ConversionType.EURtoHUF)))
+            .AddItem(new MenuItem("HUF → EUR", () => _ = GetCurrencyData.CurrencyCalculator(ConversionType.HUFtoEUR)))
             .AddReturnItem()
             .AddExitItem()
             .SetPointerCharacter('>')

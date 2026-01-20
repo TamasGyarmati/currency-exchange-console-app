@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace CurrencyApp;
+namespace CurrencyApp.Models;
 
 public sealed record CurrencyApiResponse(
     [property: JsonPropertyName("valid")] bool Valid,
