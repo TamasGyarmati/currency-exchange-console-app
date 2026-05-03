@@ -7,7 +7,9 @@ namespace CurrencyApp.Services;
 public enum ConversionType
 {
     EURtoHUF = 1,
-    HUFtoEUR = 2
+    HUFtoEUR = 2,
+    USDtoHUF = 3,
+    HUFtoUSD = 4
 }
 
 public static class GetCurrencyData
@@ -108,10 +110,10 @@ public static class GetCurrencyData
     
     private static void CurrencyConversion(CurrencyApiResponse data, ConversionType type, decimal amount)
     {
-        decimal usdToEur = data.Rates["EUR"];
-        decimal usdToHuf = data.Rates["HUF"];
+        decimal usdToEurApi = data.Rates["EUR"];
+        decimal usdToHufApi = data.Rates["HUF"];
 
-        decimal eurToHufRate = usdToHuf / usdToEur;
+        decimal eurToHufRate = usdToHufApi / usdToEurApi;
         decimal hufToEurRate = 1 / eurToHufRate;
             
         switch (type)
@@ -124,6 +126,14 @@ public static class GetCurrencyData
                 decimal hufToEur = amount * hufToEurRate;
                 Console.WriteLine($"In EUR: €{hufToEur:F2}");
                 break;
+            case ConversionType.USDtoHUF:
+                decimal usdToHuf = amount * usdToHufApi;
+                Console.WriteLine($"In HUF: {usdToHuf:F2} Ft");
+                break;
+            case ConversionType.HUFtoUSD:
+                decimal hufToUsd = amount / usdToHufApi;
+                Console.WriteLine($"In USD: ${hufToUsd:F2}");
+                break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(type), type, null);
         }
@@ -131,10 +141,15 @@ public static class GetCurrencyData
     
     private static decimal CheckAndGetUserInput(ConversionType type)
     {
-        string label = type == ConversionType.EURtoHUF
-            ? "Amount (EUR): €"
-            : "Amount (HUF): Ft ";
-        
+        string label = type switch
+        {
+            ConversionType.EURtoHUF => "Amount (EUR): € ",
+            ConversionType.HUFtoEUR => "Amount (HUF): Ft ",
+            ConversionType.USDtoHUF => "Amount (USD): $ ",
+            ConversionType.HUFtoUSD => "Amount (HUF): Ft ",
+            _ => "Amount: "
+        };
+
         while (true)
         {
             Console.Write(label);
@@ -144,10 +159,10 @@ public static class GetCurrencyData
             {
                 return amount;
             }
-            
+        
             Console.Clear();
             Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine("Invalid input. Please enter a valid number (e.g. 1, 4, 2,55, 1,7976931348623157E+308).\n");
+            Console.WriteLine("Invalid input. Please enter a valid number (e.g. 1, 4, 2.55).\n");
             Console.ResetColor();
         }
     }
